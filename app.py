@@ -116,6 +116,7 @@ def init_state():
         "result": None,
         "drawing_mode": "polygon",   # polygon | obstacle | scale
         "canvas_key": 0,             # bump to reset canvas strokes
+        "uploaded_file_token": None,
         # Panel spec (editable)
         "panel_wattage": DEFAULT_PANEL_SPEC["wattage"],
         "panel_length_mm": DEFAULT_PANEL_SPEC["length_mm"],
@@ -163,6 +164,22 @@ def bump_canvas():
     st.session_state["canvas_key"] += 1
 
 
+def reset_for_new_upload(img: Image.Image):
+    """Reset workflow state when a new rooftop image is uploaded."""
+    st.session_state["image"] = img
+    st.session_state["rotation"] = 0
+    st.session_state["flip_h"] = False
+    st.session_state["flip_v"] = False
+    st.session_state["pixels_per_meter"] = None
+    st.session_state["scale_points"] = []
+    st.session_state["roof_points"] = []
+    st.session_state["obstacles"] = []
+    st.session_state["result"] = None
+    st.session_state["drawing_mode"] = "polygon"
+    st.session_state["step"] = 2
+    bump_canvas()
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -174,16 +191,18 @@ with st.sidebar:
     # ── Step 1: Upload ───────────────────────────────────────────────────────
     st.markdown('<span class="step-badge">1</span> **Upload Roof Image**', unsafe_allow_html=True)
     uploaded = st.file_uploader("Upload a rooftop image", type=["png", "jpg", "jpeg", "webp"], label_visibility="collapsed")
-    if uploaded is not None and st.session_state["image"] is None:
-        img = Image.open(uploaded).convert("RGB")
-        # Resize large images for performance
-        max_dim = 1200
-        if max(img.size) > max_dim:
-            ratio = max_dim / max(img.size)
-            img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
-        st.session_state["image"] = img
-        st.session_state["step"] = 2
-        st.rerun()
+    if uploaded is not None:
+        upload_token = (uploaded.name, getattr(uploaded, "size", None))
+        if st.session_state["image"] is None or st.session_state["uploaded_file_token"] != upload_token:
+            img = Image.open(uploaded).convert("RGB")
+            # Resize large images for performance
+            max_dim = 1200
+            if max(img.size) > max_dim:
+                ratio = max_dim / max(img.size)
+                img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+            reset_for_new_upload(img)
+            st.session_state["uploaded_file_token"] = upload_token
+            st.rerun()
 
     st.divider()
 
